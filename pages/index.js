@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 export default function Home() {
   const [posts, setPosts] = useState([]);
@@ -44,6 +45,7 @@ export default function Home() {
               </div>
             </div>
           ))}
+          <Link href="/decisions" style={styles.moreLink}>すべての決定事項を見る →</Link>
         </div>
 
         {schedule && (
@@ -107,4 +109,5 @@ const styles = {
   summaryTag: { fontSize: 10, background: C.accentLight, color: C.accent, padding: '2px 7px', borderRadius: 4, fontWeight: 700 },
   summaryBody: { fontSize: 12, color: C.sub, lineHeight: 1.7 },
   summaryDate: { fontSize: 10, color: '#aaa', marginTop: 7 },
+  moreLink: { display: 'block', textAlign: 'right', fontSize: 12, color: C.accent, fontWeight: 600, textDecoration: 'none', marginTop: 4 },
 };
