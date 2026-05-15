@@ -31,9 +31,12 @@ export default function Home() {
           <div style={styles.headerTitle}>H1情報ハブ</div>
           <div style={styles.headerSub}>H1法話グランプリ 公式情報ポータル</div>
         </div>
-        <a href={DRIVE_URL} target="_blank" rel="noopener noreferrer" style={styles.driveBtn}>
-          📁 Drive
-        </a>
+        <div style={styles.headerBtns}>
+          <a href={DRIVE_URL} target="_blank" rel="noopener noreferrer" style={styles.driveBtn}>
+            📁 Drive
+          </a>
+          <Link href="/admin" style={styles.postBtn}>投稿</Link>
+        </div>
       </div>
 
       <div style={styles.body}>
@@ -78,10 +81,15 @@ const styles = {
   header: { background: C.accent, color: 'white', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle: { fontSize: 20, fontWeight: 700 },
   headerSub: { fontSize: 11, opacity: 0.8, marginTop: 3 },
+  headerBtns: { display: 'flex', gap: 8, alignItems: 'center' },
   driveBtn: {
     background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 13, fontWeight: 600,
     padding: '8px 13px', borderRadius: 8, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.3)',
     whiteSpace: 'nowrap',
+  },
+  postBtn: {
+    background: 'white', color: C.accent, fontSize: 13, fontWeight: 700,
+    padding: '8px 13px', borderRadius: 8, textDecoration: 'none', whiteSpace: 'nowrap',
   },
   body: { padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 },
   empty: { textAlign: 'center', color: C.sub, fontSize: 14, marginTop: 40 },
