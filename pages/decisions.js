@@ -34,7 +34,7 @@ export default function Decisions() {
               <div style={styles.decisionContent}>
                 <div style={styles.decisionText}>{d.title}</div>
                 {d.body && <div style={styles.decisionBody}>{d.body}</div>}
-                <div style={styles.decisionDate}>{d.date}</div>
+                <div style={styles.decisionDate}>{d.meeting_date || d.created_at}</div>
               </div>
             </div>
           ))

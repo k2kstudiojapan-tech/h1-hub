@@ -3,11 +3,13 @@ import { google } from 'googleapis';
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { password, category, title, body, date } = req.body;
+  const { password, category, department, title, summary, body, todos, links, meeting_date, zoom_recording_url, transcript_url } = req.body;
 
   if (password !== process.env.ADMIN_PASSWORD) {
     return res.status(401).json({ error: 'パスワードが違います' });
   }
+
+  if (category === '__check__') return res.status(200).json({ success: true });
 
   try {
     const auth = new google.auth.JWT({
@@ -17,21 +19,20 @@ export default async function handler(req, res) {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    const timestamp = new Date().toLocaleString('ja-JP');
+    const created_at = new Date().toLocaleString('ja-JP');
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'シート1!A:F',
+      range: 'シート1!A:L',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[timestamp, category, title, body, date, 'TRUE']],
+        values: [[created_at, category, department, title, summary, body, todos, links, meeting_date, zoom_recording_url, transcript_url, 'TRUE']],
       },
     });
 
     res.status(200).json({ success: true });
   } catch (error) {
     console.error('詳細エラー:', error.message);
-    console.error('スタック:', error.stack);
     res.status(500).json({ error: error.message });
   }
 }

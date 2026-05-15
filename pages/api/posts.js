@@ -11,20 +11,29 @@ export default async function handler(req, res) {
     const sheets = google.sheets({ version: 'v4', auth });
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'シート1!A2:F',
+      range: 'シート1!A2:L',
     });
 
     const rows = response.data.values || [];
-    const posts = rows
-      .filter(row => row[5] === 'TRUE')
-      .map(row => ({
-        timestamp: row[0],
-        category: row[1],
-        title: row[2],
-        body: row[3],
-        date: row[4],
-        published: row[5],
-      }));
+    const posts = [];
+    rows.forEach((row, i) => {
+      if (row[11] === 'TRUE') {
+        posts.push({
+          id: i,
+          created_at: row[0] || '',
+          category: row[1] || '',
+          department: row[2] || '',
+          title: row[3] || '',
+          summary: row[4] || '',
+          body: row[5] || '',
+          todos: row[6] || '',
+          links: row[7] || '',
+          meeting_date: row[8] || '',
+          zoom_recording_url: row[9] || '',
+          transcript_url: row[10] || '',
+        });
+      }
+    });
 
     res.status(200).json(posts);
   } catch (error) {
