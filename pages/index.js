@@ -35,6 +35,7 @@ export default function Home() {
           <a href={DRIVE_URL} target="_blank" rel="noopener noreferrer" style={styles.driveBtn}>
             📁 Drive
           </a>
+          <Link href="/zoom" style={styles.zoomBtn}>📹 Zoom</Link>
           <Link href="/admin" style={styles.postBtn}>投稿</Link>
         </div>
       </div>
@@ -83,6 +84,11 @@ const styles = {
   headerSub: { fontSize: 11, opacity: 0.8, marginTop: 3 },
   headerBtns: { display: 'flex', gap: 8, alignItems: 'center' },
   driveBtn: {
+    background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 13, fontWeight: 600,
+    padding: '8px 13px', borderRadius: 8, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.3)',
+    whiteSpace: 'nowrap',
+  },
+  zoomBtn: {
     background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 13, fontWeight: 600,
     padding: '8px 13px', borderRadius: 8, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.3)',
     whiteSpace: 'nowrap',
