@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { password, category, department, title, summary, body, todos, links, meeting_date, zoom_recording_url, transcript_url } = req.body;
+  const { password, category, department, author, title, summary, body, todos, links, meeting_date, zoom_recording_url, transcript_url } = req.body;
 
   if (password !== process.env.ADMIN_PASSWORD) {
     return res.status(401).json({ error: 'パスワードが違います' });
@@ -23,10 +23,10 @@ export default async function handler(req, res) {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'シート1!A:L',
+      range: 'シート1!A:M',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[created_at, category, department, title, summary, body, todos, links, meeting_date, zoom_recording_url, transcript_url, 'TRUE']],
+        values: [[created_at, category, department, title, summary, body, todos, links, meeting_date, zoom_recording_url, transcript_url, 'PENDING', author || '']],
       },
     });
 

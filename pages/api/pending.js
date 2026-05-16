@@ -1,6 +1,11 @@
 import { google } from 'googleapis';
 
 export default async function handler(req, res) {
+  const password = req.method === 'POST' ? req.body?.password : req.query?.password;
+  if (password !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'パスワードが違います' });
+  }
+
   try {
     const auth = new google.auth.JWT({
       email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -17,20 +22,15 @@ export default async function handler(req, res) {
     const rows = response.data.values || [];
     const posts = [];
     rows.forEach((row, i) => {
-      if (row[11] === 'TRUE') {
+      if (row[11] === 'PENDING') {
         posts.push({
-          id: i,
+          rowIndex: i,
           created_at: row[0] || '',
           category: row[1] || '',
           department: row[2] || '',
           title: row[3] || '',
           summary: row[4] || '',
           body: row[5] || '',
-          todos: row[6] || '',
-          links: row[7] || '',
-          meeting_date: row[8] || '',
-          zoom_recording_url: row[9] || '',
-          transcript_url: row[10] || '',
           author: row[12] || '',
         });
       }
@@ -39,6 +39,6 @@ export default async function handler(req, res) {
     res.status(200).json(posts);
   } catch (error) {
     console.error(error);
-    res.status(200).json([]);
+    res.status(500).json({ error: error.message });
   }
 }

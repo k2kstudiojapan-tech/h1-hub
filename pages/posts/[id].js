@@ -55,7 +55,10 @@ export default function PostDetail() {
           )}
         </div>
         <div style={styles.headerTitle}>{post.title}</div>
-        {displayDate && <div style={styles.headerDate}>{displayDate}</div>}
+        <div style={styles.headerMeta}>
+          {displayDate && <span>{displayDate}</span>}
+          {post.author && <span>投稿者：{post.author}</span>}
+        </div>
       </div>
 
       <div style={styles.body}>
@@ -136,7 +139,7 @@ const styles = {
   categoryTag: { fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: 'rgba(255,255,255,0.2)', color: 'white' },
   deptTag: { fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, color: 'white' },
   headerTitle: { fontSize: 18, fontWeight: 700, lineHeight: 1.4 },
-  headerDate: { fontSize: 11, opacity: 0.7, marginTop: 5 },
+  headerMeta: { fontSize: 11, opacity: 0.7, marginTop: 5, display: 'flex', gap: 12 },
   body: { padding: '14px 14px', display: 'flex', flexDirection: 'column', gap: 12 },
   empty: { textAlign: 'center', color: C.sub, fontSize: 14, marginTop: 40 },
   summaryBox: {
