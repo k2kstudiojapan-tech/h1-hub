@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { google } from 'googleapis';
-import { getMeetingSummary } from '../../lib/zoom';
+import OpenAI from 'openai';
+import { getMeetingTranscript } from '../../lib/zoom';
 
 export const config = {
   api: { bodyParser: false },
@@ -90,32 +91,59 @@ export default async function handler(req, res) {
   const meeting = payload.payload.object;
   const meetingId = String(meeting.id);
   const department = ROOM_DEPARTMENT_MAP[meetingId] || '不明';
-
-  // Fetch Zoom AI summary (may not be immediately available)
-  let summaryData = null;
-  try {
-    summaryData = await getMeetingSummary(meetingId);
-  } catch (err) {
-    console.error('Zoom summary fetch failed:', err.message);
-  }
-
-  const summaryText = summaryData?.summary_details?.map(d => d.summary).join('\n') || '';
-  const actionItems = Array.isArray(summaryData?.next_steps)
-    ? summaryData.next_steps.join('\n')
-    : '';
-  const meetingTopic = summaryData?.meeting_topic || meeting.topic || `${department}ミーティング`;
+  const defaultTitle = meeting.topic || `${department}ミーティング`;
   const meetingDate = meeting.start_time
     ? new Date(meeting.start_time).toLocaleString('ja-JP')
     : new Date().toLocaleString('ja-JP');
+
+  let transcript = null;
+  try {
+    transcript = await getMeetingTranscript(meetingId);
+  } catch (err) {
+    console.error('Zoom transcript fetch failed:', err.message);
+  }
+
+  let title = defaultTitle;
+  let summary = '';
+  let body = '';
+  let todos = '';
+
+  if (transcript) {
+    try {
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: '以下の会議文字起こしを分析し、必ずJSON形式で回答してください。キー: title (会議タイトル), summary (2〜3行の短い要約), body (詳細な会議サマリー), todos (TODO項目を改行区切り)。',
+          },
+          {
+            role: 'user',
+            content: `部門: ${department}\n\n文字起こし:\n${transcript}`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+      });
+
+      const result = JSON.parse(completion.choices[0].message.content);
+      title = result.title || defaultTitle;
+      summary = result.summary || '';
+      body = result.body || '';
+      todos = result.todos || '';
+    } catch (err) {
+      console.error('OpenAI summarization failed:', err.message);
+    }
+  }
 
   try {
     await saveToSheets({
       category: 'ミーティング',
       department,
-      title: meetingTopic,
-      summary: summaryText,
-      body: summaryText,
-      todos: actionItems,
+      title,
+      summary,
+      body,
+      todos,
       meeting_date: meetingDate,
     });
     res.status(200).json({ success: true });
