@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useRouter } from 'next/router';
 
 const DEPARTMENTS = ['役員', '執行部会', '運営チーム', '開発チーム', 'SNS', '企業連携チーム', '事務局'];
 const CATEGORIES = ['決定事項', '会議サマリー', 'お知らせ', '予定・スケジュール'];
@@ -12,7 +11,6 @@ const emptyForm = {
 };
 
 export default function Admin() {
-  const router = useRouter();
   const [password, setPassword] = useState('');
   const [auth, setAuth] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -50,7 +48,7 @@ export default function Admin() {
       body: JSON.stringify({ password, rowIndex }),
     }).then(r => r.json()).then(data => {
       if (data.success) {
-        router.push(`/posts/${data.rowIndex}`);
+        window.location.href = `/posts/${data.rowIndex}`;
       } else {
         setApproveStatus(s => ({ ...s, [rowIndex]: 'エラー：' + data.error }));
       }
