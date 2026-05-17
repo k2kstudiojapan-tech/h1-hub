@@ -18,7 +18,9 @@ export default function Admin() {
   const [status, setStatus] = useState('');
   const [pendingPosts, setPendingPosts] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(false);
-  const [approveStatus, setApproveStatus] = useState({});
+  const [editingPost, setEditingPost] = useState(null);
+  const [editForm, setEditForm] = useState({ title: '', summary: '', body: '', todos: '', links: '' });
+  const [editStatus, setEditStatus] = useState('');
 
   const fetchPending = (pw) => {
     setPendingLoading(true);
@@ -40,17 +42,32 @@ export default function Admin() {
     });
   };
 
-  const handleApprove = (rowIndex) => {
-    setApproveStatus(s => ({ ...s, [rowIndex]: '公開中...' }));
+  const handleEditPending = (post) => {
+    setEditingPost(post);
+    setEditForm({ title: post.title, summary: '', body: '', todos: '', links: '' });
+    setEditStatus('');
+  };
+
+  const handleApproveWithEdit = () => {
+    if (!editForm.title) { setEditStatus('タイトルは必須です'); return; }
+    setEditStatus('公開中...');
     fetch('/api/approve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password, rowIndex }),
+      body: JSON.stringify({
+        password,
+        rowIndex: editingPost.rowIndex,
+        title: editForm.title,
+        summary: editForm.summary,
+        body: editForm.body,
+        todos: editForm.todos,
+        links: editForm.links,
+      }),
     }).then(r => r.json()).then(data => {
       if (data.success) {
         window.location.href = `/posts/${data.rowIndex}`;
       } else {
-        setApproveStatus(s => ({ ...s, [rowIndex]: 'エラー：' + data.error }));
+        setEditStatus('エラー：' + data.error);
       }
     });
   };
@@ -79,9 +96,8 @@ export default function Admin() {
       body: JSON.stringify({ password, ...form }),
     }).then(r => r.json()).then(data => {
       if (data.success) {
-        setStatus('承認待ちに追加しました');
+        setStatus('投稿しました');
         setForm(emptyForm);
-        fetchPending(password);
       } else {
         setStatus('エラー：' + data.error);
       }
@@ -89,6 +105,7 @@ export default function Admin() {
   };
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+  const setEdit = (key) => (e) => setEditForm({ ...editForm, [key]: e.target.value });
 
   if (!auth) return (
     <div style={styles.page}>
@@ -106,6 +123,49 @@ export default function Admin() {
     </div>
   );
 
+  if (editingPost !== null) return (
+    <div style={styles.page}>
+      <div style={styles.header}>
+        <button onClick={() => setEditingPost(null)} style={styles.backBtn}>← 承認待ちへ戻る</button>
+        <div style={styles.headerTitle}>会議サマリー 編集・承認</div>
+      </div>
+      <div style={styles.body}>
+        <div style={styles.infoRow}>
+          <span style={styles.infoLabel}>部署</span>
+          <span style={styles.infoValue}>{editingPost.department}</span>
+        </div>
+        {editingPost.meeting_date && (
+          <div style={styles.infoRow}>
+            <span style={styles.infoLabel}>会議日時</span>
+            <span style={styles.infoValue}>{editingPost.meeting_date}</span>
+          </div>
+        )}
+
+        <div style={styles.label}>タイトル *</div>
+        <input style={styles.input} value={editForm.title} onChange={setEdit('title')} />
+
+        <div style={styles.label}>短い要約</div>
+        <input style={styles.input} value={editForm.summary} onChange={setEdit('summary')} placeholder="2〜3行で内容を説明" />
+
+        <div style={styles.label}>詳細</div>
+        <textarea style={styles.textarea} value={editForm.body} onChange={setEdit('body')} />
+
+        <div style={styles.label}>TODO（1行1項目）</div>
+        <textarea style={{ ...styles.textarea, minHeight: 80 }} value={editForm.todos} onChange={setEdit('todos')} placeholder={'参加者に連絡する\n資料を共有する'} />
+
+        <div style={styles.label}>関連リンク（1行1URL）</div>
+        <textarea style={{ ...styles.textarea, minHeight: 60 }} value={editForm.links} onChange={setEdit('links')} placeholder="https://example.com" />
+
+        {editStatus && (
+          <div style={editStatus.startsWith('エラー') || editStatus === 'タイトルは必須です' ? styles.error : styles.loadingText}>
+            {editStatus}
+          </div>
+        )}
+        <button style={styles.btn} onClick={handleApproveWithEdit}>承認して投稿</button>
+      </div>
+    </div>
+  );
+
   return (
     <div style={styles.page}>
       <div style={styles.header}>
@@ -114,7 +174,6 @@ export default function Admin() {
       </div>
       <div style={styles.body}>
 
-        {/* 承認待ち投稿セクション */}
         <div style={styles.sectionHeader}>
           <span style={styles.sectionTitle}>承認待ち投稿</span>
           {pendingPosts.length > 0 && (
@@ -130,7 +189,7 @@ export default function Admin() {
         )}
 
         {pendingPosts.map(post => (
-          <div key={post.rowIndex} style={styles.pendingCard}>
+          <div key={post.rowIndex} style={styles.pendingCard} onClick={() => handleEditPending(post)}>
             <div style={styles.pendingMeta}>
               {post.created_at && <span>{post.created_at} ・ </span>}
               <span style={styles.categoryTag}>{post.category}</span>
@@ -139,27 +198,13 @@ export default function Admin() {
               {post.author && <span style={styles.authorTag}>{post.author}</span>}
             </div>
             <div style={styles.pendingTitle}>{post.title}</div>
-            {post.summary && <div style={styles.pendingSummary}>{post.summary}</div>}
-            {post.body && (
-              <div style={styles.pendingBody}>
-                {post.body.length > 120 ? post.body.slice(0, 120) + '…' : post.body}
-              </div>
-            )}
-            {approveStatus[post.rowIndex] ? (
-              <div style={approveStatus[post.rowIndex] === '公開しました' ? styles.approveSuccess : styles.approveError}>
-                {approveStatus[post.rowIndex]}
-              </div>
-            ) : (
-              <button style={styles.approveBtn} onClick={() => handleApprove(post.rowIndex)}>
-                承認して公開
-              </button>
-            )}
+            {post.meeting_date && <div style={styles.pendingDate}>{post.meeting_date}</div>}
+            <div style={styles.editHint}>タップして編集・承認 →</div>
           </div>
         ))}
 
         <div style={styles.divider} />
 
-        {/* 新規投稿フォーム */}
         <div style={styles.sectionHeader}>
           <span style={styles.sectionTitle}>新規投稿</span>
         </div>
@@ -188,67 +233,56 @@ export default function Admin() {
             <div style={styles.label}>タイトル *</div>
             <input style={styles.input} value={form.title} onChange={set('title')} placeholder="タイトルを入力" />
 
-            {/* 決定事項 */}
             {form.category === '決定事項' && (
               <>
                 <div style={styles.label}>決定内容 *</div>
                 <textarea style={styles.textarea} value={form.body} onChange={set('body')} placeholder="" />
-
                 <div style={styles.label}>承認元</div>
                 <input style={styles.input} value={form.summary} onChange={set('summary')} placeholder="承認した組織・役員名" />
-
                 <div style={styles.label}>日付</div>
                 <input style={styles.input} type="date" value={form.meeting_date} onChange={set('meeting_date')} />
               </>
             )}
 
-            {/* 会議サマリー */}
             {form.category === '会議サマリー' && (
               <>
                 <div style={styles.label}>短い要約</div>
                 <input style={styles.input} value={form.summary} onChange={set('summary')} placeholder="2〜3行で内容を説明" />
-
                 <div style={styles.label}>詳細</div>
                 <textarea style={styles.textarea} value={form.body} onChange={set('body')} placeholder="" />
-
                 <div style={styles.label}>TODO（1行1項目）</div>
                 <textarea style={{ ...styles.textarea, minHeight: 80 }} value={form.todos} onChange={set('todos')} placeholder={'参加者に連絡する\n資料を共有する'} />
-
                 <div style={styles.label}>関連リンク（1行1URL）</div>
                 <textarea style={{ ...styles.textarea, minHeight: 60 }} value={form.links} onChange={set('links')} placeholder="https://example.com" />
-
                 <div style={styles.label}>会議日付</div>
                 <input style={styles.input} type="date" value={form.meeting_date} onChange={set('meeting_date')} />
               </>
             )}
 
-            {/* お知らせ */}
             {form.category === 'お知らせ' && (
               <>
                 <div style={styles.label}>本文 *</div>
                 <textarea style={styles.textarea} value={form.body} onChange={set('body')} placeholder="" />
-
                 <div style={styles.label}>日付</div>
                 <input style={styles.input} type="date" value={form.meeting_date} onChange={set('meeting_date')} />
               </>
             )}
 
-            {/* 予定・スケジュール */}
             {form.category === '予定・スケジュール' && (
               <>
                 <div style={styles.label}>日時 *</div>
                 <input style={styles.input} type="datetime-local" value={form.meeting_date} onChange={set('meeting_date')} />
-
                 <div style={styles.label}>場所</div>
                 <input style={styles.input} value={form.summary} onChange={set('summary')} placeholder="会場・URLなど" />
-
                 <div style={styles.label}>備考</div>
                 <textarea style={{ ...styles.textarea, minHeight: 80 }} value={form.body} onChange={set('body')} placeholder="" />
               </>
             )}
 
-            {status && <div style={status === '承認待ちに追加しました' ? styles.success : styles.error}>{status}</div>}
-            <button style={styles.btn} onClick={handleSubmit}>承認待ちに追加</button>
+            {status && <div style={status === '投稿しました' ? styles.success : styles.error}>{status}</div>}
+            <button style={styles.btn} onClick={handleSubmit}>
+              {form.category === '会議サマリー' ? '承認して投稿' : '投稿'}
+            </button>
           </>
         )}
       </div>
@@ -262,6 +296,7 @@ const styles = {
   header: { background: '#2c2c2c', color: 'white', padding: '16px 20px' },
   headerTitle: { fontSize: 18, fontWeight: 700 },
   headerSub: { fontSize: 11, opacity: 0.6, marginTop: 3 },
+  backBtn: { background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: 13, cursor: 'pointer', padding: '0 0 10px 0', fontFamily: 'sans-serif', display: 'block' },
   body: { padding: 16, display: 'flex', flexDirection: 'column', gap: 10 },
   label: { fontSize: 12, fontWeight: 700, color: C.sub },
   input: { fontSize: 15, padding: '11px 13px', borderRadius: 8, border: `1.5px solid ${C.border}`, background: 'white', width: '100%', fontFamily: 'sans-serif', boxSizing: 'border-box' },
@@ -278,16 +313,16 @@ const styles = {
   refreshBtn: { marginLeft: 'auto', fontSize: 12, padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'white', cursor: 'pointer', fontFamily: 'sans-serif' },
   loadingText: { fontSize: 13, color: C.sub, textAlign: 'center', padding: 12 },
   emptyText: { fontSize: 13, color: C.sub, background: 'white', border: `1px dashed ${C.border}`, borderRadius: 8, padding: '14px 16px', textAlign: 'center' },
-  pendingCard: { background: C.pending, border: `1.5px solid #ffe082`, borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 },
+  pendingCard: { background: C.pending, border: `1.5px solid #ffe082`, borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' },
   pendingMeta: { fontSize: 11, color: C.sub, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' },
   categoryTag: { fontSize: 11, background: '#e3f2fd', color: '#1565c0', padding: '1px 7px', borderRadius: 10, fontWeight: 700 },
   deptTag: { fontSize: 11, background: '#f3e5f5', color: '#6a1b9a', padding: '1px 7px', borderRadius: 10 },
   authorTag: { fontSize: 11, color: C.sub },
   pendingTitle: { fontSize: 15, fontWeight: 700, color: C.text },
-  pendingSummary: { fontSize: 13, color: C.sub },
-  pendingBody: { fontSize: 12, color: '#444', lineHeight: 1.6, whiteSpace: 'pre-wrap' },
-  approveBtn: { background: '#2e7d32', color: 'white', fontSize: 14, fontWeight: 700, padding: '10px 0', border: 'none', borderRadius: 8, cursor: 'pointer', width: '100%', marginTop: 4 },
-  approveSuccess: { fontSize: 13, color: '#2e7d32', background: '#eaf4ea', padding: '8px 12px', borderRadius: 6, textAlign: 'center' },
-  approveError: { fontSize: 13, color: '#e74c3c', background: '#fff8f7', padding: '8px 12px', borderRadius: 6, textAlign: 'center' },
+  pendingDate: { fontSize: 11, color: C.sub },
+  editHint: { fontSize: 11, color: C.accent, fontWeight: 600, textAlign: 'right', marginTop: 2 },
   divider: { height: 1, background: C.border, margin: '8px 0' },
+  infoRow: { display: 'flex', alignItems: 'center', gap: 10, background: '#f0f4fa', borderRadius: 8, padding: '10px 14px' },
+  infoLabel: { fontSize: 12, fontWeight: 700, color: C.sub, minWidth: 60 },
+  infoValue: { fontSize: 14, color: C.text },
 };

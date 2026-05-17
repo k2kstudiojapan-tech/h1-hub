@@ -26,7 +26,7 @@ export default async function handler(req, res) {
       range: 'シート1!A:M',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[created_at, category, department, title, summary, body, todos, links, meeting_date, zoom_recording_url, transcript_url, 'PENDING', author || '']],
+        values: [[created_at, category, department, title, summary, body, todos, links, meeting_date, zoom_recording_url, transcript_url, 'TRUE', author || '']],
       },
     });
 

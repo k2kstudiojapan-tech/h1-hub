@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { password, rowIndex } = req.body;
+  const { password, rowIndex, title, summary, body, todos, links } = req.body;
 
   if (password !== process.env.ADMIN_PASSWORD) {
     return res.status(401).json({ error: 'パスワードが違います' });
@@ -21,14 +21,23 @@ export default async function handler(req, res) {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    // rowIndex is 0-based from A2, spreadsheet row = rowIndex + 2
     const sheetRow = rowIndex + 2;
 
-    await sheets.spreadsheets.values.update({
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: `シート1!L${sheetRow}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['TRUE']] },
+      requestBody: {
+        valueInputOption: 'USER_ENTERED',
+        data: [
+          {
+            range: `シート1!D${sheetRow}:H${sheetRow}`,
+            values: [[title || '', summary || '', body || '', todos || '', links || '']],
+          },
+          {
+            range: `シート1!L${sheetRow}`,
+            values: [['TRUE']],
+          },
+        ],
+      },
     });
 
     res.status(200).json({ success: true, rowIndex });

@@ -31,6 +31,7 @@ export default async function handler(req, res) {
           title: row[3] || '',
           summary: row[4] || '',
           body: row[5] || '',
+          meeting_date: row[8] || '',
           author: row[12] || '',
         });
       }
