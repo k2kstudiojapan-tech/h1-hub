@@ -36,7 +36,7 @@ export default async function handler(req, res) {
       }
     });
 
-    res.status(200).json(posts);
+    res.status(200).json(posts.reverse());
   } catch (error) {
     console.error(error);
     res.status(200).json([]);
