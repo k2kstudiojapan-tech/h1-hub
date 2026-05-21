@@ -108,7 +108,25 @@ export default function PostDetail() {
           </div>
         )}
 
-        {(post.zoom_recording_url || post.transcript_url) && (
+        {post.category === '予定・スケジュール' && (post.zoom_recording_url || post.transcript_url) && (
+          <div style={styles.section}>
+            <div style={styles.sectionLabel}>参加・調整</div>
+            <div style={styles.linkList}>
+              {post.zoom_recording_url && (
+                <a href={post.zoom_recording_url} target="_blank" rel="noopener noreferrer" style={styles.zoomJoinBtn}>
+                  📹 Zoomに参加する
+                </a>
+              )}
+              {post.transcript_url && (
+                <a href={post.transcript_url} target="_blank" rel="noopener noreferrer" style={styles.resourceBtn}>
+                  📅 日程調整（調整さん）
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {post.category !== '予定・スケジュール' && (post.zoom_recording_url || post.transcript_url) && (
           <div style={styles.section}>
             <div style={styles.sectionLabel}>会議リソース</div>
             <div style={styles.linkList}>
@@ -159,5 +177,10 @@ const styles = {
     display: 'block', fontSize: 14, fontWeight: 600, color: C.accent,
     textDecoration: 'none', padding: '10px 14px', background: '#e8f0fa',
     borderRadius: 8, border: `1px solid #c5d8f5`,
+  },
+  zoomJoinBtn: {
+    display: 'block', textAlign: 'center', fontSize: 16, fontWeight: 700,
+    color: 'white', textDecoration: 'none', padding: '15px 14px',
+    background: C.accent, borderRadius: 10,
   },
 };

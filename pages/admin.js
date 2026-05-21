@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ROOMS } from '../lib/rooms';
 
 const DEPARTMENTS = ['役員', '執行部会', '運営チーム', '開発チーム', 'SNS', '企業連携チーム', '事務局'];
 const CATEGORIES = ['決定事項', '会議サマリー', 'お知らせ', '予定・スケジュール'];
@@ -8,6 +9,7 @@ const emptyForm = {
   title: '', summary: '', body: '',
   todos: '', links: '', meeting_date: '',
   zoom_recording_url: '', transcript_url: '',
+  zoom_room: '',
 };
 
 export default function Admin() {
@@ -272,8 +274,35 @@ export default function Admin() {
               <>
                 <div style={styles.label}>日時 *</div>
                 <input style={styles.input} type="datetime-local" value={form.meeting_date} onChange={set('meeting_date')} />
-                <div style={styles.label}>場所</div>
-                <input style={styles.input} value={form.summary} onChange={set('summary')} placeholder="会場・URLなど" />
+
+                <div style={styles.label}>Zoom会議室</div>
+                <div style={styles.tagRow}>
+                  {ROOMS.map(r => (
+                    <button key={r.id}
+                      style={form.zoom_room === r.department ? styles.tagSelected : styles.tag}
+                      onClick={() => setForm({ ...form, zoom_room: r.department, zoom_recording_url: r.url })}>
+                      {r.department}
+                    </button>
+                  ))}
+                  <button
+                    style={form.zoom_room === 'その他' ? styles.tagSelected : styles.tag}
+                    onClick={() => setForm({ ...form, zoom_room: 'その他', zoom_recording_url: '' })}>
+                    その他
+                  </button>
+                </div>
+                {form.zoom_room === 'その他' && (
+                  <>
+                    <div style={styles.label}>ZoomのURL</div>
+                    <input style={styles.input} value={form.zoom_recording_url} onChange={set('zoom_recording_url')} placeholder="https://zoom.us/j/..." />
+                  </>
+                )}
+
+                <div style={styles.label}>調整さんURL</div>
+                <input style={styles.input} value={form.transcript_url} onChange={set('transcript_url')} placeholder="https://chouseisan.com/..." />
+
+                <div style={styles.label}>場所（会場名など）</div>
+                <input style={styles.input} value={form.summary} onChange={set('summary')} placeholder="会場名・URLなど" />
+
                 <div style={styles.label}>備考</div>
                 <textarea style={{ ...styles.textarea, minHeight: 80 }} value={form.body} onChange={set('body')} placeholder="" />
               </>

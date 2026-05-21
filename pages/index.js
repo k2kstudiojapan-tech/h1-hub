@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 
 // Google DriveのURLをここに設定してください（または環境変数 NEXT_PUBLIC_DRIVE_URL）
 const DRIVE_URL = process.env.NEXT_PUBLIC_DRIVE_URL || '#';
@@ -15,6 +16,7 @@ const DEPT_COLORS = {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,8 +48,9 @@ export default function Home() {
         ) : posts.length === 0 ? (
           <div style={styles.empty}>投稿がありません</div>
         ) : (
-          posts.map((post) => (
-            <Link key={post.id} href={`/posts/${post.id}`} style={styles.postLink}>
+          posts.map((post) => {
+            const isSchedule = post.category === '予定・スケジュール';
+            const cardInner = (
               <div style={styles.postCard}>
                 <div style={styles.metaRow}>
                   {post.category && (
@@ -67,9 +70,37 @@ export default function Home() {
                 {post.summary && (
                   <div style={styles.postSummary}>{post.summary}</div>
                 )}
+                {isSchedule && (post.zoom_recording_url || post.transcript_url) && (
+                  <div style={styles.scheduleActions}>
+                    {post.zoom_recording_url && (
+                      <a href={post.zoom_recording_url} target="_blank" rel="noopener noreferrer"
+                        style={styles.zoomJoinBtn}
+                        onClick={e => e.stopPropagation()}>
+                        📹 Zoomに参加
+                      </a>
+                    )}
+                    {post.transcript_url && (
+                      <a href={post.transcript_url} target="_blank" rel="noopener noreferrer"
+                        style={styles.chouseiBtn}
+                        onClick={e => e.stopPropagation()}>
+                        📅 日程調整
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
-            </Link>
-          ))
+            );
+            return isSchedule ? (
+              <div key={post.id} style={styles.postLink}
+                onClick={() => router.push(`/posts/${post.id}`)}>
+                {cardInner}
+              </div>
+            ) : (
+              <Link key={post.id} href={`/posts/${post.id}`} style={styles.postLink}>
+                {cardInner}
+              </Link>
+            );
+          })
         )}
       </div>
     </div>
@@ -115,4 +146,13 @@ const styles = {
   dateText: { fontSize: 11, color: '#aaa', marginLeft: 'auto' },
   postTitle: { fontSize: 15, fontWeight: 700, color: C.text, lineHeight: 1.4 },
   postSummary: { fontSize: 12, color: C.sub, marginTop: 5, lineHeight: 1.6 },
+  scheduleActions: { display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap' },
+  zoomJoinBtn: {
+    fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6,
+    background: C.accent, color: 'white', textDecoration: 'none', cursor: 'pointer',
+  },
+  chouseiBtn: {
+    fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6,
+    background: '#e8f0fa', color: C.accent, textDecoration: 'none', cursor: 'pointer',
+  },
 };
