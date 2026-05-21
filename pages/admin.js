@@ -23,6 +23,10 @@ export default function Admin() {
   const [editingPost, setEditingPost] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', summary: '', body: '', todos: '', links: '' });
   const [editStatus, setEditStatus] = useState('');
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadFolder, setUploadFolder] = useState('edit');
+  const [uploadStatus, setUploadStatus] = useState('');
+  const [uploadResult, setUploadResult] = useState(null);
 
   const fetchPending = (pw) => {
     setPendingLoading(true);
@@ -104,6 +108,36 @@ export default function Admin() {
         setStatus('エラー：' + data.error);
       }
     });
+  };
+
+  const handleUpload = () => {
+    if (!uploadFile) { setUploadStatus('ファイルを選択してください'); return; }
+    setUploadStatus('アップロード中...');
+    setUploadResult(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1];
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password,
+          base64,
+          filename: uploadFile.name,
+          mimeType: uploadFile.type,
+          folder: uploadFolder,
+        }),
+      }).then(r => r.json()).then(data => {
+        if (data.success) {
+          setUploadStatus('アップロード完了');
+          setUploadResult(data);
+          setUploadFile(null);
+        } else {
+          setUploadStatus('エラー：' + data.error);
+        }
+      });
+    };
+    reader.readAsDataURL(uploadFile);
   };
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
@@ -204,6 +238,37 @@ export default function Admin() {
             <div style={styles.editHint}>タップして編集・承認 →</div>
           </div>
         ))}
+
+        <div style={styles.divider} />
+
+        <div style={styles.sectionHeader}>
+          <span style={styles.sectionTitle}>ファイルをアップロード</span>
+        </div>
+
+        <div style={styles.label}>保存先フォルダ</div>
+        <div style={styles.tagRow}>
+          <button style={uploadFolder === 'edit' ? styles.tagSelected : styles.tag}
+            onClick={() => setUploadFolder('edit')}>共同編集用</button>
+          <button style={uploadFolder === 'view' ? styles.tagSelected : styles.tag}
+            onClick={() => setUploadFolder('view')}>閲覧用</button>
+        </div>
+
+        <div style={styles.label}>ファイル選択</div>
+        <input type="file" style={styles.fileInput}
+          onChange={e => { setUploadFile(e.target.files[0] || null); setUploadStatus(''); setUploadResult(null); }} />
+
+        {uploadStatus && (
+          <div style={uploadStatus.startsWith('エラー') ? styles.error : uploadStatus === 'アップロード完了' ? styles.success : styles.loadingText}>
+            {uploadStatus}
+          </div>
+        )}
+        {uploadResult && (
+          <a href={uploadResult.url} target="_blank" rel="noopener noreferrer" style={styles.uploadResultLink}>
+            🔗 {uploadResult.fileName} — Driveで開く
+          </a>
+        )}
+
+        <button style={styles.btn} onClick={handleUpload}>アップロード</button>
 
         <div style={styles.divider} />
 
@@ -341,6 +406,11 @@ const styles = {
   badge: { background: '#e53935', color: 'white', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 10 },
   refreshBtn: { marginLeft: 'auto', fontSize: 12, padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'white', cursor: 'pointer', fontFamily: 'sans-serif' },
   loadingText: { fontSize: 13, color: C.sub, textAlign: 'center', padding: 12 },
+  fileInput: { fontSize: 14, padding: '10px 0', width: '100%', fontFamily: 'sans-serif', cursor: 'pointer' },
+  uploadResultLink: {
+    display: 'block', fontSize: 13, color: C.accent, textDecoration: 'none',
+    background: '#e8f0fa', padding: '10px 14px', borderRadius: 8, wordBreak: 'break-all',
+  },
   emptyText: { fontSize: 13, color: C.sub, background: 'white', border: `1px dashed ${C.border}`, borderRadius: 8, padding: '14px 16px', textAlign: 'center' },
   pendingCard: { background: C.pending, border: `1.5px solid #ffe082`, borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' },
   pendingMeta: { fontSize: 11, color: C.sub, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' },
