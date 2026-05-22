@@ -28,6 +28,7 @@ export default function Admin() {
   const [uploadFolder, setUploadFolder] = useState('edit');
   const [uploadStatus, setUploadStatus] = useState('');
   const [uploadResult, setUploadResult] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const fetchPending = (pw) => {
     setPendingLoading(true);
@@ -103,8 +104,9 @@ export default function Admin() {
       body: JSON.stringify({ password, ...form }),
     }).then(r => r.json()).then(data => {
       if (data.success) {
-        setStatus('done');
+        setSubmitted(true);
         setForm(emptyForm);
+        setStatus('');
       } else {
         setStatus('エラー：' + data.error);
       }
@@ -405,11 +407,11 @@ export default function Admin() {
           </>
         )}
 
-        {status === 'done' && (
+        {submitted && (
           <>
             <div style={styles.success}>投稿しました ✓</div>
             <Link href="/" style={styles.homeBtn}>ホームへ戻る</Link>
-            <button style={{ ...styles.btn, background: '#555' }} onClick={() => setStatus('')}>続けて投稿する</button>
+            <button style={{ ...styles.btn, background: '#555' }} onClick={() => setSubmitted(false)}>続けて投稿する</button>
           </>
         )}
       </div>
