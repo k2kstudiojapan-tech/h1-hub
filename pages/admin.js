@@ -398,20 +398,18 @@ export default function Admin() {
               </div>
             )}
 
-            {status === 'done' ? (
-              <>
-                <div style={styles.success}>投稿しました ✓</div>
-                <Link href="/" style={styles.homeBtn}>ホームへ戻る</Link>
-                <button style={{ ...styles.btn, background: '#555', marginTop: 0 }} onClick={() => setStatus('')}>続けて投稿する</button>
-              </>
-            ) : (
-              <>
-                {status && <div style={styles.error}>{status}</div>}
-                <button style={styles.btn} onClick={handleSubmit}>
-                  {form.category === '会議サマリー' ? '承認して投稿' : '投稿'}
-                </button>
-              </>
-            )}
+            {status && <div style={styles.error}>{status}</div>}
+            <button style={styles.btn} onClick={handleSubmit}>
+              {form.category === '会議サマリー' ? '承認して投稿' : '投稿'}
+            </button>
+          </>
+        )}
+
+        {status === 'done' && (
+          <>
+            <div style={styles.success}>投稿しました ✓</div>
+            <Link href="/" style={styles.homeBtn}>ホームへ戻る</Link>
+            <button style={{ ...styles.btn, background: '#555' }} onClick={() => setStatus('')}>続けて投稿する</button>
           </>
         )}
       </div>
