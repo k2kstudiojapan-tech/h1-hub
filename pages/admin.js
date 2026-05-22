@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Link from 'next/link';
 import { ROOMS } from '../lib/rooms';
 
 const DEPARTMENTS = ['役員', '執行部会', '運営チーム', '開発チーム', 'SNS', '企業連携チーム', '事務局'];
@@ -9,7 +10,7 @@ const emptyForm = {
   title: '', summary: '', body: '',
   todos: '', links: '', meeting_date: '',
   zoom_recording_url: '', transcript_url: '',
-  zoom_room: '',
+  zoom_room: '', attachStatus: '',
 };
 
 export default function Admin() {
@@ -102,7 +103,7 @@ export default function Admin() {
       body: JSON.stringify({ password, ...form }),
     }).then(r => r.json()).then(data => {
       if (data.success) {
-        setStatus('投稿しました');
+        setStatus('done');
         setForm(emptyForm);
       } else {
         setStatus('エラー：' + data.error);
@@ -110,34 +111,49 @@ export default function Admin() {
     });
   };
 
-  const handleUpload = () => {
-    if (!uploadFile) { setUploadStatus('ファイルを選択してください'); return; }
-    setUploadStatus('アップロード中...');
-    setUploadResult(null);
+  const doUpload = (file, folder, onSuccess, onError, onStart) => {
+    onStart();
     const reader = new FileReader();
     reader.onload = () => {
-      const base64 = reader.result.split(',')[1];
+      const arrayBuffer = reader.result;
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
       fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password,
-          base64,
-          filename: uploadFile.name,
-          mimeType: uploadFile.type,
-          folder: uploadFolder,
-        }),
+        body: JSON.stringify({ password, base64, filename: file.name, mimeType: file.type || 'application/octet-stream', folder }),
       }).then(r => r.json()).then(data => {
-        if (data.success) {
-          setUploadStatus('アップロード完了');
-          setUploadResult(data);
-          setUploadFile(null);
-        } else {
-          setUploadStatus('エラー：' + data.error);
-        }
-      });
+        if (data.success) onSuccess(data);
+        else onError(data.error);
+      }).catch(e => onError(e.message));
     };
-    reader.readAsDataURL(uploadFile);
+    reader.onerror = () => onError('ファイルの読み込みに失敗しました');
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleUpload = () => {
+    if (!uploadFile) { setUploadStatus('ファイルを選択してください'); return; }
+    doUpload(
+      uploadFile, uploadFolder,
+      (data) => { setUploadStatus('アップロード完了'); setUploadResult(data); setUploadFile(null); },
+      (err) => setUploadStatus('エラー：' + err),
+      () => { setUploadStatus('アップロード中...'); setUploadResult(null); },
+    );
+  };
+
+  const handleAttach = (file) => {
+    if (!file) return;
+    doUpload(
+      file, 'edit',
+      (data) => {
+        const newLinks = form.links ? form.links + '\n' + data.url : data.url;
+        setForm({ ...form, links: newLinks, attachStatus: '添付完了：' + data.fileName });
+      },
+      (err) => setForm({ ...form, attachStatus: 'エラー：' + err }),
+      () => setForm({ ...form, attachStatus: 'アップロード中...' }),
+    );
   };
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
@@ -373,10 +389,29 @@ export default function Admin() {
               </>
             )}
 
-            {status && <div style={status === '投稿しました' ? styles.success : styles.error}>{status}</div>}
-            <button style={styles.btn} onClick={handleSubmit}>
-              {form.category === '会議サマリー' ? '承認して投稿' : '投稿'}
-            </button>
+            <div style={styles.label}>ファイルを添付（任意）</div>
+            <input type="file" style={styles.fileInput}
+              onChange={e => { const f = e.target.files[0]; if (f) handleAttach(f); e.target.value = ''; }} />
+            {form.attachStatus && (
+              <div style={form.attachStatus.startsWith('エラー') ? styles.error : form.attachStatus === 'アップロード中...' ? styles.loadingText : styles.success}>
+                {form.attachStatus}
+              </div>
+            )}
+
+            {status === 'done' ? (
+              <>
+                <div style={styles.success}>投稿しました ✓</div>
+                <Link href="/" style={styles.homeBtn}>ホームへ戻る</Link>
+                <button style={{ ...styles.btn, background: '#555', marginTop: 0 }} onClick={() => setStatus('')}>続けて投稿する</button>
+              </>
+            ) : (
+              <>
+                {status && <div style={styles.error}>{status}</div>}
+                <button style={styles.btn} onClick={handleSubmit}>
+                  {form.category === '会議サマリー' ? '承認して投稿' : '投稿'}
+                </button>
+              </>
+            )}
           </>
         )}
       </div>
@@ -407,6 +442,10 @@ const styles = {
   refreshBtn: { marginLeft: 'auto', fontSize: 12, padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'white', cursor: 'pointer', fontFamily: 'sans-serif' },
   loadingText: { fontSize: 13, color: C.sub, textAlign: 'center', padding: 12 },
   fileInput: { fontSize: 14, padding: '10px 0', width: '100%', fontFamily: 'sans-serif', cursor: 'pointer' },
+  homeBtn: {
+    display: 'block', textAlign: 'center', background: '#2e7d32', color: 'white',
+    fontSize: 16, fontWeight: 700, padding: 16, borderRadius: 10, textDecoration: 'none',
+  },
   uploadResultLink: {
     display: 'block', fontSize: 13, color: C.accent, textDecoration: 'none',
     background: '#e8f0fa', padding: '10px 14px', borderRadius: 8, wordBreak: 'break-all',

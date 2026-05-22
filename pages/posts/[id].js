@@ -70,9 +70,19 @@ export default function PostDetail() {
           <div style={styles.section}>
             <div style={styles.sectionLabel}>本文</div>
             <div style={styles.bodyText}>
-              {post.body.split('\n').map((line, i) => (
-                <span key={i}>{line}<br /></span>
-              ))}
+              {post.body.split('\n').map((line, i) => {
+                const parts = line.split(/(https?:\/\/[^\s]+)/g);
+                return (
+                  <span key={i}>
+                    {parts.map((part, j) =>
+                      /^https?:\/\//.test(part)
+                        ? <a key={j} href={part} target="_blank" rel="noopener noreferrer" style={styles.bodyLink}>{part}</a>
+                        : part
+                    )}
+                    <br />
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
@@ -167,6 +177,7 @@ const styles = {
   section: { background: 'white', borderRadius: 10, padding: '13px 15px', border: `1px solid ${C.border}` },
   sectionLabel: { fontSize: 11, fontWeight: 700, color: C.accent, letterSpacing: '0.08em', marginBottom: 9 },
   bodyText: { fontSize: 14, color: C.text, lineHeight: 1.8 },
+  bodyLink: { color: C.accent, textDecoration: 'underline', wordBreak: 'break-all' },
   todoList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 7 },
   todoItem: { fontSize: 14, color: C.text, display: 'flex', gap: 8, alignItems: 'flex-start' },
   todoCheck: { fontSize: 16, color: C.accent, flexShrink: 0 },
