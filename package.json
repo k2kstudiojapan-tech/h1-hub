@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/generate-icons.js",
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "generate-icons": "node scripts/generate-icons.js"
   },
   "dependencies": {
     "googleapis": "^171.4.0",
