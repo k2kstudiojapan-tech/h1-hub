@@ -1,30 +1,51 @@
-/**
- * Push通知サブスクリプション保存API
- *
- * 現状: ログ出力のみ（将来: Google SheetsまたはSupabaseに保存）
- * POST /api/save-subscription
- * Body: { endpoint, expirationTime, keys: { p256dh, auth } }
- */
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+import { google } from 'googleapis';
 
-  const subscription = req.body;
-
-  if (!subscription?.endpoint) {
-    return res.status(400).json({ error: 'Invalid subscription object' });
-  }
-
-  // TODO: ここにサブスクリプション保存ロジックを追加
-  // 例: Google Sheetsに追記、またはSupabaseのテーブルに保存
-  // const { endpoint, keys } = subscription;
-  // await saveToSheet(endpoint, keys.p256dh, keys.auth);
-
-  console.log('[Push] 新しいサブスクリプション:', subscription.endpoint.substring(0, 60) + '...');
-
-  return res.status(200).json({
-    ok: true,
-    message: 'Subscription received',
+function getAuth() {
+  return new google.auth.JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: Buffer.from(process.env.GOOGLE_PRIVATE_KEY || '', 'base64').toString('utf-8'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const sub = req.body;
+  if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) {
+    return res.status(400).json({ error: 'Invalid subscription' });
+  }
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+
+    // 重複チェック
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: '購読者!A:A',
+    });
+    const endpoints = (existing.data.values || []).flat();
+    if (endpoints.includes(sub.endpoint)) {
+      return res.status(200).json({ ok: true, message: 'already registered' });
+    }
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: '購読者!A:D',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[
+          sub.endpoint,
+          sub.keys.p256dh,
+          sub.keys.auth,
+          new Date().toLocaleString('ja-JP'),
+        ]],
+      },
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('[save-subscription]', err.message);
+    return res.status(500).json({ error: err.message });
+  }
 }

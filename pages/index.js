@@ -108,12 +108,35 @@ export default function Home() {
     else setUnreadCount(0);
   }
 
+  // ─── Push購読登録 ───────────────────────────────────────────────────────────
+  async function subscribePush(reg) {
+    try {
+      const { publicKey } = await fetch('/api/vapid-public-key').then(r => r.json());
+      if (!publicKey) return;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      await fetch('/api/save-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub),
+      });
+    } catch (e) {
+      console.warn('[push] subscribe failed:', e.message);
+    }
+  }
+
   // ─── 通知許可リクエスト ──────────────────────────────────────────────────────
   const requestNotification = useCallback(async () => {
     if (!('Notification' in window)) return;
     const perm = await Notification.requestPermission();
     setNotifPerm(perm);
     if (perm === 'granted') {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        await subscribePush(reg);
+      }
       showTestNotification('通知が有効になりました', '新着お知らせをお届けします。');
     }
   }, []);
@@ -138,6 +161,12 @@ export default function Home() {
     if (notifPerm !== 'granted') {
       await requestNotification();
     } else {
+      // 既に許可済みなら購読を再確認してからテスト通知
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        const existing = await reg.pushManager.getSubscription();
+        if (!existing) await subscribePush(reg);
+      }
       await showTestNotification('H1ポータル テスト通知', '通知は正常に動作しています');
     }
   }
@@ -643,3 +672,11 @@ const S = {
   navIcon:   { fontSize: 22 },
   navLabel:  { fontSize: 10, fontWeight: 600 },
 };
+
+// VAPID公開鍵（base64url）→ Uint8Array 変換
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
