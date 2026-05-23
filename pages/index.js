@@ -210,6 +210,9 @@ export default function Home() {
 
       {/* ════ クイックアクション ════ */}
       <div style={S.section}>
+        <div style={S.manualLinkRow}>
+          <Link href="/manual" style={S.manualLink}>📖 使い方マニュアル</Link>
+        </div>
         <div style={S.quickGrid}>
           <Link href="/zoom" style={{...S.qa, background: '#1a4f8a'}}>
             <span style={S.qaIcon}>📹</span>
@@ -478,6 +481,8 @@ const S = {
 
   // クイックアクション
   section: { padding: '14px 14px 0' },
+  manualLinkRow: { display: 'flex', justifyContent: 'flex-end', marginBottom: 8 },
+  manualLink: { fontSize: 12, color: C.accent, textDecoration: 'none', fontWeight: 600, padding: '4px 10px', background: '#e8f0fa', borderRadius: 20 },
   quickGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
