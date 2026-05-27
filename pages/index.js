@@ -177,10 +177,13 @@ export default function Home() {
     localStorage.setItem('h1-install-dismissed', '1');
   }
 
-  // ─── 投稿フィルター ──────────────────────────────────────────────────────────
+  // ─── 投稿フィルター（トップは最新7件のみ） ────────────────────────────────────
+  const TOP_LIMIT = 7;
   const filteredPosts = activeTab === 'すべて'
     ? posts
     : posts.filter(p => p.category === TAB_TO_CATEGORY[activeTab]);
+  const visiblePosts = filteredPosts.slice(0, TOP_LIMIT);
+  const hasMore = filteredPosts.length > TOP_LIMIT;
 
   // ─── レンダリング ────────────────────────────────────────────────────────────
   return (
@@ -302,7 +305,7 @@ export default function Home() {
             {activeTab === 'すべて' ? '投稿がありません' : `「${activeTab}」の投稿はありません`}
           </div>
         ) : (
-          filteredPosts.map(post => {
+          visiblePosts.map(post => {
             const isSchedule = post.category === '予定・スケジュール';
             const card = (
               <div style={S.card}>
@@ -365,6 +368,16 @@ export default function Home() {
               </Link>
             );
           })
+        )}
+
+        {/* 過去投稿リンク */}
+        {hasMore && (
+          <Link
+            href={`/archive${activeTab !== 'すべて' ? `?tab=${encodeURIComponent(activeTab)}` : ''}`}
+            style={S.archiveLink}
+          >
+            過去の投稿を見る　→
+          </Link>
         )}
       </div>
 
@@ -598,6 +611,19 @@ const S = {
     color: C.sub,
     fontSize: 14,
     padding: '40px 0',
+  },
+  archiveLink: {
+    display: 'block',
+    textAlign: 'center',
+    padding: '14px',
+    marginTop: 4,
+    borderRadius: 10,
+    border: `1px solid ${C.border}`,
+    background: C.white,
+    color: C.accent,
+    fontSize: 14,
+    fontWeight: 600,
+    textDecoration: 'none',
   },
   cardLink: { textDecoration: 'none', display: 'block', cursor: 'pointer' },
   card: {
