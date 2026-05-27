@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { ROOMS } from '../lib/rooms';
 
 const DEPARTMENTS = ['役員', '執行部会', '運営チーム', '開発チーム', 'SNS', '企業連携チーム', '事務局'];
@@ -14,6 +15,7 @@ const emptyForm = {
 };
 
 export default function Admin() {
+  const router = useRouter();
   const [password, setPassword] = useState('');
   const [auth, setAuth] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -107,9 +109,13 @@ export default function Admin() {
         setSubmitted(true);
         setForm(emptyForm);
         setStatus('');
+        // 1秒後にトップへ自動遷移（最新データを確実に取得）
+        setTimeout(() => router.push('/'), 1000);
       } else {
         setStatus('エラー：' + data.error);
       }
+    }).catch(e => {
+      setStatus('通信エラー：' + e.message + '（再度お試しください）');
     });
   };
 
