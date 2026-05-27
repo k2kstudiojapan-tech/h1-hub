@@ -46,7 +46,7 @@ async function saveToSheets({ category, department, title, summary, body, todos,
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: process.env.SPREADSHEET_ID,
-    range: 'シート1!A:L',
+    range: 'シート1!A1',
     valueInputOption: 'USER_ENTERED',
     requestBody: {
       values: [[created_at, category, department, title, summary, body, todos, '', meeting_date, '', '', 'PENDING']],

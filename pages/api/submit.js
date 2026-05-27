@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'シート1!A:M',
+      range: 'シート1!A1',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[created_at, category, department, title, summary, body, todos, links, meeting_date, zoom_recording_url, transcript_url, 'TRUE', author || '']],
