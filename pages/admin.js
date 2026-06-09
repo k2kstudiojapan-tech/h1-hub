@@ -58,6 +58,18 @@ export default function Admin() {
     setEditStatus('');
   };
 
+  const handleDeletePending = (post) => {
+    if (!window.confirm(`「${post.title}」を削除しますか？`)) return;
+    fetch('/api/delete-pending', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password, rowIndex: post.rowIndex }),
+    }).then(r => r.json()).then(data => {
+      if (data.success) fetchPending(password);
+      else alert('削除エラー：' + data.error);
+    }).catch(e => alert('通信エラー：' + e.message));
+  };
+
   const handleApproveWithEdit = () => {
     if (!editForm.title) { setEditStatus('タイトルは必須です'); return; }
     setEditStatus('公開中...');
@@ -249,7 +261,7 @@ export default function Admin() {
         )}
 
         {pendingPosts.map(post => (
-          <div key={post.rowIndex} style={styles.pendingCard} onClick={() => handleEditPending(post)}>
+          <div key={post.rowIndex} style={styles.pendingCard}>
             <div style={styles.pendingMeta}>
               {post.created_at && <span>{post.created_at} ・ </span>}
               <span style={styles.categoryTag}>{post.category}</span>
@@ -259,7 +271,10 @@ export default function Admin() {
             </div>
             <div style={styles.pendingTitle}>{post.title}</div>
             {post.meeting_date && <div style={styles.pendingDate}>{post.meeting_date}</div>}
-            <div style={styles.editHint}>タップして編集・承認 →</div>
+            <div style={styles.pendingActions}>
+              <button style={styles.approveBtn} onClick={() => handleEditPending(post)}>編集・承認 →</button>
+              <button style={styles.deleteBtn} onClick={() => handleDeletePending(post)}>🗑 削除</button>
+            </div>
           </div>
         ))}
 
@@ -457,7 +472,10 @@ const styles = {
     background: '#e8f0fa', padding: '10px 14px', borderRadius: 8, wordBreak: 'break-all',
   },
   emptyText: { fontSize: 13, color: C.sub, background: 'white', border: `1px dashed ${C.border}`, borderRadius: 8, padding: '14px 16px', textAlign: 'center' },
-  pendingCard: { background: C.pending, border: `1.5px solid #ffe082`, borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' },
+  pendingCard: { background: C.pending, border: `1.5px solid #ffe082`, borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 },
+  pendingActions: { display: 'flex', gap: 8, marginTop: 2 },
+  approveBtn: { flex: 1, fontSize: 12, fontWeight: 700, color: C.accent, background: 'white', border: `1.5px solid ${C.accent}`, borderRadius: 7, padding: '7px 10px', cursor: 'pointer', fontFamily: 'sans-serif' },
+  deleteBtn: { fontSize: 12, fontWeight: 700, color: '#e53935', background: 'white', border: '1.5px solid #e53935', borderRadius: 7, padding: '7px 12px', cursor: 'pointer', fontFamily: 'sans-serif' },
   pendingMeta: { fontSize: 11, color: C.sub, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' },
   categoryTag: { fontSize: 11, background: '#e3f2fd', color: '#1565c0', padding: '1px 7px', borderRadius: 10, fontWeight: 700 },
   deptTag: { fontSize: 11, background: '#f3e5f5', color: '#6a1b9a', padding: '1px 7px', borderRadius: 10 },
