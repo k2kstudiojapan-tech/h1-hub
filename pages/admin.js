@@ -144,10 +144,23 @@ export default function Admin() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password, base64, filename: file.name, mimeType: file.type || 'application/octet-stream', folder }),
-      }).then(r => r.json()).then(data => {
+      }).then(r => {
+        // 診断用（2026-08-04、原因特定のため一時追加）：レスポンス自体の
+        // 状態を先に見る。r.json()が失敗する場合、実際のstatusやContent-Type、
+        // 本文の先頭が分かった方が原因特定が早い。
+        return r.text().then(bodyText => {
+          let data;
+          try {
+            data = JSON.parse(bodyText);
+          } catch (parseErr) {
+            throw new Error(`[診断]JSON解析失敗 status=${r.status} content-type=${r.headers.get('content-type')} body先頭200文字=${bodyText.slice(0, 200)}`);
+          }
+          return data;
+        });
+      }).then(data => {
         if (data.success) onSuccess(data);
         else onError(data.error);
-      }).catch(e => onError(e.message));
+      }).catch(e => onError(`[診断]name=${e.name} message=${e.message}`));
     };
     reader.onerror = () => onError('ファイルの読み込みに失敗しました');
     reader.readAsArrayBuffer(file);
