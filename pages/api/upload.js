@@ -1,6 +1,8 @@
 import { google } from 'googleapis';
+const { CHUNK_SIZE, encryptToken } = require('../../lib/upload-chunk-protocol');
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
+const TOKEN_TTL_MS = 3 * 60 * 60 * 1000;
 const FOLDER_IDS = {
   view: '1cseP7t7ioyegAHmC3i725XWFPl8WpMkv',
   edit: '1USa7cQQ0HRaEp7J3mEYGjLc6xxmhXjQ9',
@@ -66,6 +68,9 @@ export default async function handler(req, res) {
   if (fileSize > MAX_UPLOAD_SIZE) {
     return res.status(413).json({ error: 'ファイルサイズが上限の50MBを超えています' });
   }
+  if (!process.env.UPLOAD_TOKEN_SECRET) {
+    return res.status(500).json({ error: 'アップロード機能が準備できていません' });
+  }
 
   try {
     const accessToken = await getAccessToken();
@@ -91,9 +96,24 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: getUploadErrorMessage(uploadResponse.status) });
     }
 
+    const issuedAt = Date.now();
+    const uploadToken = encryptToken(
+      {
+        sessionUrl,
+        filename: safeFilename,
+        mimeType: safeMimeType,
+        size: fileSize,
+        folderId,
+        issuedAt,
+        expiresAt: issuedAt + TOKEN_TTL_MS,
+      },
+      process.env.UPLOAD_TOKEN_SECRET,
+    );
+
     return res.status(200).json({
       success: true,
-      sessionUrl,
+      uploadToken,
+      chunkSize: CHUNK_SIZE,
       filename: safeFilename,
       mimeType: safeMimeType,
       size: fileSize,
