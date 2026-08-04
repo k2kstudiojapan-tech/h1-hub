@@ -68,7 +68,7 @@ export default function Admin() {
     }).then(r => r.json()).then(data => {
       if (data.success) fetchPending(password);
       else alert('削除エラー：' + data.error);
-    }).catch(() => alert('通信エラーが発生しました。再度お試しください'));
+    }).catch(e => alert('通信エラー：' + e.message));
   };
 
   const handleApproveWithEdit = () => {
@@ -127,8 +127,8 @@ export default function Admin() {
       } else {
         setStatus('エラー：' + data.error);
       }
-    }).catch(() => {
-      setStatus('通信エラーが発生しました。再度お試しください');
+    }).catch(e => {
+      setStatus('通信エラー：' + e.message + '（再度お試しください）');
     });
   };
 
