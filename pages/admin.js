@@ -161,6 +161,9 @@ export default function Admin() {
 
   const doUpload = async (file, folder, onSuccess, onError, onStart) => {
     onStart();
+    // 診断用（2026-08-04、CORS原因特定のため一時追加）：どのステップで
+    // 失敗したかを識別するためのマーカー。
+    let step = 'init';
     try {
       if (!file) {
         const error = new Error('NO_FILE');
@@ -169,6 +172,7 @@ export default function Admin() {
       }
       if (file.size > 50 * 1024 * 1024) throw new Error('UPLOAD_TOO_LARGE');
 
+      step = 'session';
       const sessionResponse = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -182,6 +186,7 @@ export default function Admin() {
       });
       const sessionData = await readJsonOrError(sessionResponse, 'アップロードの準備に失敗しました');
 
+      step = 'drive_put';
       const driveResponse = await fetch(sessionData.sessionUrl, {
         method: 'PUT',
         headers: {
@@ -191,10 +196,12 @@ export default function Admin() {
       });
       if (!driveResponse.ok) throw new Error(driveResponse.status === 401 || driveResponse.status === 403 ? 'UPLOAD_ABORTED' : 'UPLOAD_REJECTED');
 
+      step = 'drive_response_parse';
       const driveData = await driveResponse.json().catch(() => null);
       const fileId = driveData?.id;
       if (!fileId) throw new Error('CONFIRM_FAILED');
 
+      step = 'confirm';
       const confirmResponse = await fetch('/api/upload-confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,7 +211,10 @@ export default function Admin() {
 
       onSuccess(confirmData);
     } catch (error) {
-      onError(uploadErrorMessage(error));
+      // 診断用（2026-08-04、CORS原因特定のため一時追加）：本来は
+      // uploadErrorMessage(error)で日本語メッセージへ変換するが、
+      // 原因特定のため一時的に生の情報を表示する。
+      onError(`[診断]step=${step} name=${error.name} message=${error.message}`);
     }
   };
 
