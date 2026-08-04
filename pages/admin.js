@@ -30,6 +30,7 @@ export default function Admin() {
   const [uploadFolder, setUploadFolder] = useState('edit');
   const [uploadStatus, setUploadStatus] = useState('');
   const [uploadResult, setUploadResult] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const fetchPending = (pw) => {
@@ -131,48 +132,89 @@ export default function Admin() {
     });
   };
 
-  const doUpload = (file, folder, onSuccess, onError, onStart) => {
+  const uploadErrorMessage = (error) => {
+    if (error?.userMessage) return error.userMessage;
+    if (error?.message === 'UPLOAD_TOO_LARGE') return 'ファイルサイズが上限の50MBを超えています';
+    if (error?.message === 'UPLOAD_ABORTED') return '通信が中断されました。時間をおいて再度お試しください';
+    if (error?.message === 'UPLOAD_REJECTED') return 'Google Driveへのアップロードに失敗しました';
+    if (error?.message === 'CONFIRM_FAILED') return 'アップロード完了確認に失敗しました';
+    return '通信エラーが発生しました。時間をおいて再度お試しください';
+  };
+
+  const readJsonOrError = async (response, fallbackMessage) => {
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      const error = new Error('INVALID_RESPONSE');
+      error.userMessage = fallbackMessage;
+      throw error;
+    }
+
+    if (!response.ok || !data?.success) {
+      const error = new Error('API_ERROR');
+      error.userMessage = data?.error || fallbackMessage;
+      throw error;
+    }
+    return data;
+  };
+
+  const doUpload = async (file, folder, onSuccess, onError, onStart) => {
     onStart();
-    const reader = new FileReader();
-    reader.onload = () => {
-      const arrayBuffer = reader.result;
-      const bytes = new Uint8Array(arrayBuffer);
-      let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-      const base64 = btoa(binary);
-      fetch('/api/upload', {
+    try {
+      if (!file) {
+        const error = new Error('NO_FILE');
+        error.userMessage = 'ファイルを選択してください';
+        throw error;
+      }
+      if (file.size > 50 * 1024 * 1024) throw new Error('UPLOAD_TOO_LARGE');
+
+      const sessionResponse = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, base64, filename: file.name, mimeType: file.type || 'application/octet-stream', folder }),
-      }).then(r => {
-        // 診断用（2026-08-04、原因特定のため一時追加）：レスポンス自体の
-        // 状態を先に見る。r.json()が失敗する場合、実際のstatusやContent-Type、
-        // 本文の先頭が分かった方が原因特定が早い。
-        return r.text().then(bodyText => {
-          let data;
-          try {
-            data = JSON.parse(bodyText);
-          } catch (parseErr) {
-            throw new Error(`[診断]JSON解析失敗 status=${r.status} content-type=${r.headers.get('content-type')} body先頭200文字=${bodyText.slice(0, 200)}`);
-          }
-          return data;
-        });
-      }).then(data => {
-        if (data.success) onSuccess(data);
-        else onError(data.error);
-      }).catch(e => onError(`[診断]name=${e.name} message=${e.message}`));
-    };
-    reader.onerror = () => onError('ファイルの読み込みに失敗しました');
-    reader.readAsArrayBuffer(file);
+        body: JSON.stringify({
+          password,
+          filename: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          size: file.size,
+          folder,
+        }),
+      });
+      const sessionData = await readJsonOrError(sessionResponse, 'アップロードの準備に失敗しました');
+
+      const driveResponse = await fetch(sessionData.sessionUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': sessionData.mimeType || file.type || 'application/octet-stream',
+        },
+        body: file,
+      });
+      if (!driveResponse.ok) throw new Error(driveResponse.status === 401 || driveResponse.status === 403 ? 'UPLOAD_ABORTED' : 'UPLOAD_REJECTED');
+
+      const driveData = await driveResponse.json().catch(() => null);
+      const fileId = driveData?.id;
+      if (!fileId) throw new Error('CONFIRM_FAILED');
+
+      const confirmResponse = await fetch('/api/upload-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, fileId, folder }),
+      });
+      const confirmData = await readJsonOrError(confirmResponse, 'アップロード完了確認に失敗しました');
+
+      onSuccess(confirmData);
+    } catch (error) {
+      onError(uploadErrorMessage(error));
+    }
   };
 
   const handleUpload = () => {
     if (!uploadFile) { setUploadStatus('ファイルを選択してください'); return; }
     doUpload(
       uploadFile, uploadFolder,
-      (data) => { setUploadStatus('アップロード完了'); setUploadResult(data); setUploadFile(null); },
-      (err) => setUploadStatus('エラー：' + err),
-      () => { setUploadStatus('アップロード中...'); setUploadResult(null); },
+      (data) => { setUploadStatus('アップロード完了'); setUploadResult(data); setUploadFile(null); setUploading(false); },
+      (err) => { setUploadStatus('エラー：' + err); setUploading(false); },
+      () => { setUploading(true); setUploadStatus('アップロード中...'); setUploadResult(null); },
     );
   };
 
@@ -320,7 +362,9 @@ export default function Admin() {
           </a>
         )}
 
-        <button style={styles.btn} onClick={handleUpload}>アップロード</button>
+        <button style={{ ...styles.btn, opacity: uploading ? 0.6 : 1 }} onClick={handleUpload} disabled={uploading}>
+          {uploading ? 'アップロード中...' : 'アップロード'}
+        </button>
 
         <div style={styles.divider} />
 
