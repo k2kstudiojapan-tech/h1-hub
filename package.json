@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "generate-icons": "node scripts/generate-icons.js",
-    "generate-pdfs": "node scripts/generate-pdfs.js"
+    "generate-pdfs": "node scripts/generate-pdfs.js",
+    "test": "node scripts/verify-upload-chunk-logic.js"
   },
   "dependencies": {
     "googleapis": "^171.4.0",

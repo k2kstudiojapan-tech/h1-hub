@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { ROOMS } from '../lib/rooms';
 
+let uploadInFlight = false;
 const DEPARTMENTS = ['役員', '執行部会', '運営チーム', '開発チーム', 'SNS', '企業連携チーム', '事務局'];
 const CATEGORIES = ['決定事項', '会議サマリー', 'お知らせ', '予定・スケジュール'];
 
@@ -134,6 +135,8 @@ export default function Admin() {
 
   const uploadErrorMessage = (error) => {
     if (error?.userMessage) return error.userMessage;
+    if (error?.message === 'TOKEN_EXPIRED') return 'アップロードの有効期限が切れました。最初からやり直してください';
+    if (error?.message === 'RANGE_MISMATCH_EXCEEDED') return 'アップロードの位置を再同期できませんでした。最初からやり直してください';
     if (error?.message === 'UPLOAD_TOO_LARGE') return 'ファイルサイズが上限の50MBを超えています';
     if (error?.message === 'UPLOAD_ABORTED') return '通信が中断されました。時間をおいて再度お試しください';
     if (error?.message === 'UPLOAD_REJECTED') return 'Google Driveへのアップロードに失敗しました';
@@ -160,10 +163,9 @@ export default function Admin() {
   };
 
   const doUpload = async (file, folder, onSuccess, onError, onStart) => {
+    if (uploadInFlight) return;
+    uploadInFlight = true;
     onStart();
-    // 診断用（2026-08-04、CORS原因特定のため一時追加）：どのステップで
-    // 失敗したかを識別するためのマーカー。
-    let step = 'init';
     try {
       if (!file) {
         const error = new Error('NO_FILE');
@@ -172,7 +174,6 @@ export default function Admin() {
       }
       if (file.size > 50 * 1024 * 1024) throw new Error('UPLOAD_TOO_LARGE');
 
-      step = 'session';
       const sessionResponse = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -186,22 +187,104 @@ export default function Admin() {
       });
       const sessionData = await readJsonOrError(sessionResponse, 'アップロードの準備に失敗しました');
 
-      step = 'drive_put';
-      const driveResponse = await fetch(sessionData.sessionUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': sessionData.mimeType || file.type || 'application/octet-stream',
-        },
-        body: file,
-      });
-      if (!driveResponse.ok) throw new Error(driveResponse.status === 401 || driveResponse.status === 403 ? 'UPLOAD_ABORTED' : 'UPLOAD_REJECTED');
+      const uploadToken = sessionData.uploadToken;
+      const chunkSize = sessionData.chunkSize;
+      const size = sessionData.size;
+      if (!uploadToken || !Number.isFinite(chunkSize) || !Number.isFinite(size)) throw new Error('UPLOAD_REJECTED');
 
-      step = 'drive_response_parse';
-      const driveData = await driveResponse.json().catch(() => null);
-      const fileId = driveData?.id;
+      const readChunkResponse = async (response, fallbackMessage) => {
+        const data = await response.json().catch(() => null);
+        if (data?.error === 'RANGE_MISMATCH') return data;
+        if (!response.ok || !data?.success) {
+          const error = new Error(data?.error || 'UPLOAD_REJECTED');
+          error.userMessage = data?.message || data?.error || fallbackMessage;
+          throw error;
+        }
+        return data;
+      };
+
+      const probePosition = async () => {
+        const response = await fetch('/api/upload-chunk', {
+          method: 'PUT',
+          headers: {
+            'X-Upload-Token': uploadToken,
+            'Content-Range': `bytes */${size}`,
+          },
+        });
+        const data = await readChunkResponse(response, 'アップロード位置の確認に失敗しました');
+        if (data.status === 'complete') return { complete: true, fileId: data.fileId };
+        if (data.status === 'incomplete' && Number.isFinite(data.receivedBytes)) {
+          return { complete: false, position: Math.min(data.receivedBytes, size) };
+        }
+        throw new Error('UPLOAD_REJECTED');
+      };
+
+      let position = 0;
+      let fileId = null;
+      let resyncCount = 0;
+
+      while (position < size && !fileId) {
+        const slice = file.slice(position, Math.min(position + chunkSize, size));
+        const end = position + slice.size - 1;
+        let chunkData = null;
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          let chunkResponse = null;
+          try {
+            chunkResponse = await fetch('/api/upload-chunk', {
+              method: 'PUT',
+              headers: {
+                'X-Upload-Token': uploadToken,
+                'Content-Range': `bytes ${position}-${end}/${size}`,
+                'Content-Type': 'application/octet-stream',
+              },
+              body: slice,
+            });
+          } catch (error) {
+            if (attempt < 2) continue;
+            if (resyncCount >= 5) throw error;
+            const probe = await probePosition().catch(() => null);
+            if (!probe) throw error;
+            resyncCount += 1;
+            if (probe.complete) {
+              fileId = probe.fileId;
+            } else {
+              position = probe.position;
+            }
+          }
+          if (!chunkResponse) continue;
+          chunkData = await readChunkResponse(chunkResponse, 'アップロード中継に失敗しました');
+          break;
+        }
+
+        if (fileId) break;
+        if (!chunkData) continue;
+
+        if (chunkData.error === 'RANGE_MISMATCH') {
+          if (resyncCount >= 5) throw new Error('RANGE_MISMATCH_EXCEEDED');
+          const probe = await probePosition();
+          resyncCount += 1;
+          if (probe.complete) {
+            fileId = probe.fileId;
+          } else {
+            position = probe.position;
+          }
+          continue;
+        }
+
+        if (chunkData.status === 'complete') {
+          fileId = chunkData.fileId;
+          break;
+        }
+        if (chunkData.status === 'incomplete' && Number.isFinite(chunkData.receivedBytes)) {
+          position = Math.min(chunkData.receivedBytes, size);
+          continue;
+        }
+        throw new Error('UPLOAD_REJECTED');
+      }
+
       if (!fileId) throw new Error('CONFIRM_FAILED');
 
-      step = 'confirm';
       const confirmResponse = await fetch('/api/upload-confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,10 +294,9 @@ export default function Admin() {
 
       onSuccess(confirmData);
     } catch (error) {
-      // 診断用（2026-08-04、CORS原因特定のため一時追加）：本来は
-      // uploadErrorMessage(error)で日本語メッセージへ変換するが、
-      // 原因特定のため一時的に生の情報を表示する。
-      onError(`[診断]step=${step} name=${error.name} message=${error.message}`);
+      onError(uploadErrorMessage(error));
+    } finally {
+      uploadInFlight = false;
     }
   };
 
