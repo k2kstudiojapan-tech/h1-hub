@@ -222,53 +222,58 @@ export default function Admin() {
       let position = 0;
       let fileId = null;
       let resyncCount = 0;
+      const MAX_RESYNC = 5;
+
+      // 送信リクエスト自体が失敗（fetchが例外を投げる、またはGoogleが
+      // RANGE_MISMATCHを返す）した場合、サーバー側では実際には受信・
+      // 完了済みの可能性がある（ブラウザが応答を受け取れなかっただけ）。
+      // 同じチャンクを盲目的に再送すると、Googleに重複したファイルが
+      // 作られる事故につながるため、再送の前に必ずこの位置確認プローブ
+      // （副作用の無い読み取り専用の問い合わせ）で現在の受信位置・完了
+      // 状態を確認してから、必要な分だけを送り直す。プローブ自体は副作用
+      // が無いため、プローブ自体が失敗した場合のみ2回まで再試行してよい。
+      const resyncViaProbe = async () => {
+        if (resyncCount >= MAX_RESYNC) throw new Error('RANGE_MISMATCH_EXCEEDED');
+        resyncCount += 1;
+        let probe = null;
+        for (let probeAttempt = 0; probeAttempt < 2; probeAttempt += 1) {
+          try {
+            probe = await probePosition();
+            break;
+          } catch (error) {
+            if (probeAttempt === 1) throw error;
+          }
+        }
+        if (probe.complete) {
+          fileId = probe.fileId;
+        } else {
+          position = probe.position;
+        }
+      };
 
       while (position < size && !fileId) {
         const slice = file.slice(position, Math.min(position + chunkSize, size));
         const end = position + slice.size - 1;
         let chunkData = null;
 
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          let chunkResponse = null;
-          try {
-            chunkResponse = await fetch('/api/upload-chunk', {
-              method: 'PUT',
-              headers: {
-                'X-Upload-Token': uploadToken,
-                'Content-Range': `bytes ${position}-${end}/${size}`,
-                'Content-Type': 'application/octet-stream',
-              },
-              body: slice,
-            });
-          } catch (error) {
-            if (attempt < 2) continue;
-            if (resyncCount >= 5) throw error;
-            const probe = await probePosition().catch(() => null);
-            if (!probe) throw error;
-            resyncCount += 1;
-            if (probe.complete) {
-              fileId = probe.fileId;
-            } else {
-              position = probe.position;
-            }
-          }
-          if (!chunkResponse) continue;
+        try {
+          const chunkResponse = await fetch('/api/upload-chunk', {
+            method: 'PUT',
+            headers: {
+              'X-Upload-Token': uploadToken,
+              'Content-Range': `bytes ${position}-${end}/${size}`,
+              'Content-Type': 'application/octet-stream',
+            },
+            body: slice,
+          });
           chunkData = await readChunkResponse(chunkResponse, 'アップロード中継に失敗しました');
-          break;
+        } catch (error) {
+          await resyncViaProbe();
+          continue;
         }
 
-        if (fileId) break;
-        if (!chunkData) continue;
-
         if (chunkData.error === 'RANGE_MISMATCH') {
-          if (resyncCount >= 5) throw new Error('RANGE_MISMATCH_EXCEEDED');
-          const probe = await probePosition();
-          resyncCount += 1;
-          if (probe.complete) {
-            fileId = probe.fileId;
-          } else {
-            position = probe.position;
-          }
+          await resyncViaProbe();
           continue;
         }
 
