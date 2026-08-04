@@ -32,8 +32,16 @@ check('encryptTokenとdecryptTokenの往復', () => {
 });
 
 check('改ざんされたトークンの拒否', () => {
+  // トークン文字列の末尾1文字だけを別の文字に置換する方式は、その文字が
+  // base64urlの余りバイトを表す場合、置換先によっては実際のバイト値が
+  // 変化せず改ざんを検出できないことがある（確率的に失敗するテストに
+  // なってしまう）。ciphertext部分の先頭バイトを実際にXORで反転させる
+  // ことで、常に実バイト値が変化することを保証する。
   const token = encryptToken({ size: 1, expiresAt: 2 }, 'secret');
-  const tampered = token.slice(0, -1) + (token.endsWith('A') ? 'B' : 'A');
+  const [ivPart, ciphertextPart, tagPart] = token.split('.');
+  const ciphertextBuf = Buffer.from(ciphertextPart, 'base64url');
+  ciphertextBuf[0] ^= 0xff;
+  const tampered = `${ivPart}.${ciphertextBuf.toString('base64url')}.${tagPart}`;
   assert.throws(() => decryptToken(tampered, 'secret'));
 });
 
