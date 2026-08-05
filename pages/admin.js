@@ -4,6 +4,8 @@ import { useRouter } from 'next/router';
 import { ROOMS } from '../lib/rooms';
 
 let uploadInFlight = false;
+// 50 MiB (UI表示は50MB)
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const DEPARTMENTS = ['役員', '執行部会', '運営チーム', '開発チーム', 'SNS', '企業連携チーム', '事務局'];
 const CATEGORIES = ['決定事項', '会議サマリー', 'お知らせ', '予定・スケジュール'];
 
@@ -28,6 +30,7 @@ export default function Admin() {
   const [editForm, setEditForm] = useState({ title: '', summary: '', body: '', todos: '', links: '' });
   const [editStatus, setEditStatus] = useState('');
   const [uploadFile, setUploadFile] = useState(null);
+  const [uploadFileError, setUploadFileError] = useState('');
   const [uploadFolder, setUploadFolder] = useState('edit');
   const [uploadStatus, setUploadStatus] = useState('');
   const [uploadResult, setUploadResult] = useState(null);
@@ -162,6 +165,20 @@ export default function Admin() {
     return data;
   };
 
+  const formatFileSize = (bytes) => {
+    if (!Number.isFinite(bytes)) return '';
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(2)} MB (${bytes.toLocaleString('ja-JP')} bytes)`;
+  };
+
+  const handleUploadFileChange = (e) => {
+    const file = e.target.files[0] || null;
+    setUploadFile(file);
+    setUploadStatus('');
+    setUploadResult(null);
+    setUploadFileError(file && file.size > MAX_FILE_SIZE ? '50MBを超えるファイルはアップロードできません。' : '');
+  };
+
   const doUpload = async (file, folder, onSuccess, onError, onStart) => {
     if (uploadInFlight) return;
     uploadInFlight = true;
@@ -172,7 +189,7 @@ export default function Admin() {
         error.userMessage = 'ファイルを選択してください';
         throw error;
       }
-      if (file.size > 50 * 1024 * 1024) throw new Error('UPLOAD_TOO_LARGE');
+      if (file.size > MAX_FILE_SIZE) throw new Error('UPLOAD_TOO_LARGE');
 
       const sessionResponse = await fetch('/api/upload', {
         method: 'POST',
@@ -307,9 +324,13 @@ export default function Admin() {
 
   const handleUpload = () => {
     if (!uploadFile) { setUploadStatus('ファイルを選択してください'); return; }
+    if (uploadFile.size > MAX_FILE_SIZE) {
+      setUploadFileError('50MBを超えるファイルはアップロードできません。');
+      return;
+    }
     doUpload(
       uploadFile, uploadFolder,
-      (data) => { setUploadStatus('アップロード完了'); setUploadResult(data); setUploadFile(null); setUploading(false); },
+      (data) => { setUploadStatus('アップロード完了'); setUploadResult(data); setUploadFile(null); setUploadFileError(''); setUploading(false); },
       (err) => { setUploadStatus('エラー：' + err); setUploading(false); },
       () => { setUploading(true); setUploadStatus('アップロード中...'); setUploadResult(null); },
     );
@@ -446,7 +467,20 @@ export default function Admin() {
 
         <div style={styles.label}>ファイル選択</div>
         <input type="file" style={styles.fileInput}
-          onChange={e => { setUploadFile(e.target.files[0] || null); setUploadStatus(''); setUploadResult(null); }} />
+          onChange={handleUploadFileChange} />
+
+        {uploadFile && (
+          <div style={styles.fileInfo}>
+            <div style={styles.fileInfoName}>{uploadFile.name}</div>
+            <div style={styles.fileInfoSize}>{formatFileSize(uploadFile.size)}</div>
+          </div>
+        )}
+
+        {uploadFileError && (
+          <div style={styles.error}>
+            {uploadFileError}
+          </div>
+        )}
 
         {uploadStatus && (
           <div style={uploadStatus.startsWith('エラー') ? styles.error : uploadStatus === 'アップロード完了' ? styles.success : styles.loadingText}>
@@ -459,7 +493,7 @@ export default function Admin() {
           </a>
         )}
 
-        <button style={{ ...styles.btn, opacity: uploading ? 0.6 : 1 }} onClick={handleUpload} disabled={uploading}>
+        <button style={{ ...styles.btn, opacity: uploading || uploadFileError ? 0.6 : 1 }} onClick={handleUpload} disabled={uploading || Boolean(uploadFileError)}>
           {uploading ? 'アップロード中...' : 'アップロード'}
         </button>
 
@@ -617,6 +651,9 @@ const styles = {
   refreshBtn: { marginLeft: 'auto', fontSize: 12, padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'white', cursor: 'pointer', fontFamily: 'sans-serif' },
   loadingText: { fontSize: 13, color: C.sub, textAlign: 'center', padding: 12 },
   fileInput: { fontSize: 14, padding: '10px 0', width: '100%', fontFamily: 'sans-serif', cursor: 'pointer' },
+  fileInfo: { fontSize: 13, color: C.text, background: 'white', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 },
+  fileInfoName: { fontWeight: 700, wordBreak: 'break-all' },
+  fileInfoSize: { color: C.sub },
   homeBtn: {
     display: 'block', textAlign: 'center', background: '#2e7d32', color: 'white',
     fontSize: 16, fontWeight: 700, padding: 16, borderRadius: 10, textDecoration: 'none',
